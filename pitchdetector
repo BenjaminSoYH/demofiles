@@ -1,0 +1,59 @@
+import numpy as np
+import librosa
+
+def difference(x, N, tau_max):
+    d = np.zeros(tau_max)
+    for tau in range(1, tau_max):
+        d[tau] = np.sum((x[:N - tau] - x[tau:N]) ** 2)
+    return d
+
+def normalize(d):
+    d_prime = np.zeros_like(d)
+    d_prime[0] = 1
+    for tau in range(1, len(d)):
+        d_prime[tau] = d[tau] / ((1 / tau) * np.sum(d[1:tau + 1]))
+    return d_prime
+
+def detection(x, sample_rate, tau_max, threshold=0.1):
+    N = len(x)
+    d = difference(x, N, tau_max)
+    d_prime = normalize(d)
+
+    tau_min = np.where(d_prime < threshold)[0]
+    if len(tau_min) == 0:
+        return None
+    tau_min = tau_min[0]
+
+    if 1 < tau_min < len(d_prime) - 1:
+        a = d_prime[tau_min - 1]
+        b = d_prime[tau_min]
+        c = d_prime[tau_min + 1]
+        tau_min += (c - a) / (2 * (2 * b - a - c))
+
+    pitch = sample_rate / tau_min
+    return pitch
+
+def detect_pitch_in_audio_file(audio_file_path):
+    try:
+        signal, sample_rate = librosa.load(audio_file_path, sr=None)
+    except FileNotFoundError:
+        print(f"Error: Audio file not found at {audio_file_path}")
+        return []
+
+    frame_size = 2048
+    hop_length = 512
+    tau_max = int(sample_rate / 50)
+
+    pitches = []
+    for i in range(0, len(signal) - frame_size + 1, hop_length):
+        frame = signal[i:i + frame_size]
+        pitch = detection(frame, sample_rate, tau_max)
+        pitches.append(pitch if pitch is not None else 0)
+
+    return pitches
+
+audio_file = 'pitchdetectoor/audiotest.ogg'
+print(f"Loading audio from: {audio_file}")
+
+pitches = detect_pitch_in_audio_file(audio_file)
+print("Detected pitches:", pitches)
