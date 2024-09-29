@@ -1,0 +1,52 @@
+import cv2
+
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
+
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+
+cap = cv2.VideoCapture(0)
+
+while True:
+    ret, frame = cap.read()
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+
+    for (fx, fy, fw, fh) in faces:
+        cv2.rectangle(frame, (fx, fy), (fx + fw, fy + fh), RED, 2)
+
+        gray_face = gray[fy:fy + fh, fx:fx + fw]
+        face = frame[fy:fy + fh, fx:fx + fw]
+
+        filtered_gray_face = face[0:round(fh / 2), 0:fw]
+
+        eyes = eye_cascade.detectMultiScale(filtered_gray_face, scaleFactor=1.1, minNeighbors=5)
+
+        for (ex, ey, ew, eh) in eyes:
+            gray_eyes = gray_face[ey + round(eh * 0.3):ey + round(eh * 0.7), ex:ex + ew]
+            color_eyes = face[ey + round(eh * 0.3):ey + round(eh * 0.7), ex:ex + ew]
+
+            _, threseyes = cv2.threshold(gray_eyes, 30, 255, cv2.THRESH_BINARY)
+            threseyes = cv2.medianBlur(threseyes, 5)
+
+            contours, _ = cv2.findContours(threseyes, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            for contour in contours:
+                (x, y), radius = cv2.minEnclosingCircle(contour)
+
+                center = (int(x), int(y))
+                radius = int(radius / 5)
+
+                cv2.circle(color_eyes, center, radius, (0, 0, 255), 2)  # Blue circle for pupil
+
+    cv2.imshow('window', frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
